@@ -346,6 +346,97 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--paper);color:var(--i
 /* ── TOAST ──────────────────────────────── */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:8px 18px;border-radius:var(--r);font-size:13px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:999;white-space:nowrap}
 .toast.show{opacity:1}
+/* ── FIRST GUIDE ───────────────────────── */
+.guide-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  z-index:1200;
+  background:rgba(44,36,22,.45);
+  backdrop-filter:blur(1px);
+}
+.guide-overlay.show{display:block}
+
+.guide-highlight{
+  position:fixed;
+  border-radius:8px;
+  box-shadow:
+    0 0 0 9999px rgba(44,36,22,.45),
+    0 0 0 2px rgba(255,255,255,.88),
+    0 10px 30px rgba(0,0,0,.18);
+  transition:all .22s ease;
+  pointer-events:none;
+}
+
+.guide-pop{
+  position:fixed;
+  width:340px;
+  max-width:calc(100vw - 24px);
+  background:var(--paper-card);
+  border:1px solid var(--line);
+  border-radius:6px;
+  box-shadow:var(--shadow-lg);
+  padding:14px 14px 12px;
+  transition:all .22s ease;
+}
+.guide-step{
+  font-size:11px;
+  color:var(--ink-faint);
+  margin-bottom:4px;
+}
+.guide-title{
+  font-family:'Noto Serif SC',serif;
+  font-size:16px;
+  color:var(--ink);
+  margin-bottom:6px;
+}
+.guide-desc{
+  font-size:13px;
+  color:var(--ink-mid);
+  line-height:1.75;
+}
+.guide-actions{
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  margin-top:12px;
+}
+.guide-btn{
+  padding:7px 12px;
+  border-radius:4px;
+  font-size:12px;
+  font-family:inherit;
+  cursor:pointer;
+  transition:all var(--tr);
+}
+.guide-btn.sec{
+  background:none;
+  border:1px solid var(--line);
+  color:var(--ink-mid);
+}
+.guide-btn.sec:hover{
+  background:var(--paper-mid);
+}
+.guide-btn.pri{
+  background:var(--rust);
+  border:1px solid var(--rust);
+  color:#fff;
+}
+.guide-btn.pri:hover{
+  background:var(--ink);
+  border-color:var(--ink);
+}
+.guide-tipline{
+  margin-top:8px;
+  font-size:11px;
+  color:var(--ink-faint);
+}
+
+@media(max-width:768px){
+  .guide-pop{
+    width:min(320px, calc(100vw - 20px));
+  }
+}
 
 /* ── MOBILE ─────────────────────────────── */
 @media(max-width:768px){
@@ -559,13 +650,30 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--paper);color:var(--i
       </select>
     </div>
     <div class="modal-acts">
+      <button class="mbtn c" onclick="resetGuide()">重新查看引导</button>
       <button class="mbtn c" onclick="closeSettings()">取消</button>
       <button class="mbtn s" onclick="saveSettings()">保存设置</button>
     </div>
+
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
+<!-- FIRST TIME GUIDE -->
+<div class="guide-overlay" id="guideOverlay">
+  <div class="guide-highlight" id="guideHighlight"></div>
+  <div class="guide-pop" id="guidePop">
+    <div class="guide-step" id="guideStep">1 / 7</div>
+    <div class="guide-title" id="guideTitle">欢迎来到纸间</div>
+    <div class="guide-desc" id="guideDesc">这里是功能说明。</div>
+    <div class="guide-tipline">支持键盘：← 上一步，→ / Enter 下一步，Esc 跳过</div>
+    <div class="guide-actions">
+      <button class="guide-btn sec" id="guidePrevBtn" onclick="prevGuideStep()">上一步</button>
+      <button class="guide-btn sec" onclick="skipGuide()">跳过</button>
+      <button class="guide-btn pri" id="guideNextBtn" onclick="nextGuideStep()">下一步</button>
+    </div>
+  </div>
+</div>
 
 <script>
 /* ════════════════════════════════════════
@@ -1250,6 +1358,221 @@ document.addEventListener('keydown',e=>{
     else closeEditor();
   }
 });
+/* ════════════════════════════════════════
+   FIRST LOGIN GUIDE
+════════════════════════════════════════ */
+let guideIndex = 0;
+
+function getGuideSteps(){
+  const desktop = [
+    {
+      selector: '.search-wrap',
+      title: '搜索入口',
+      desc: '这里可以搜索笔记、标签、来源和关键词。支持快捷键 ⌘K / Ctrl+K，适合快速定位内容。'
+    },
+    {
+      selector: '.btn-clip',
+      title: '快速剪藏',
+      desc: '这是最核心的入口。你可以粘贴文字、网页 URL、Coze 文档或 Markdown，让 AI 自动生成标题、摘要、标签和能力维度。'
+    },
+    {
+      selector: '.view-tabs',
+      title: '多种查看方式',
+      desc: '这里可以切换卡片、雷达、日历和图谱视图，用不同方式浏览你的知识库。'
+    },
+    {
+      selector: '#sidebar',
+      title: '左侧导航',
+      desc: '左侧可以按分类、能力维度、来源、文件夹和标签筛选内容，帮助你快速缩小范围。'
+    },
+    {
+      selector: '#notesGrid',
+      title: '笔记卡片区',
+      desc: '这里展示当前筛选结果。点击任意卡片，就能在右侧打开详细内容进行查看和编辑。'
+    },
+    {
+      selector: '#editorPanel',
+      title: '右侧编辑面板',
+      desc: '打开笔记后，这里可以编辑标题、正文、标签、能力维度和有效期，还会显示 AI 相似推荐、Prompt 模板和反向链接。'
+    },
+    {
+      selector: '.btn-new',
+      title: '新建笔记',
+      desc: '除了剪藏，你也可以直接新建一篇手写笔记，用来整理想法、PRD 草稿或工作记录。'
+    }
+  ];
+
+  const mobile = [
+    {
+      selector: '.search-wrap',
+      title: '搜索入口',
+      desc: '这里可以搜索笔记、标签和关键词。'
+    },
+    {
+      selector: '.btn-clip',
+      title: '快速剪藏',
+      desc: '这是最核心的入口，支持文字、URL、Coze 文档和 Markdown。'
+    },
+    {
+      selector: '.hamburger',
+      title: '侧边导航入口',
+      desc: '手机端左侧导航会收进这里，点击即可展开筛选与分类。'
+    },
+    {
+      selector: '#notesGrid',
+      title: '笔记区',
+      desc: '这里显示当前筛选后的笔记列表，点击即可打开。'
+    },
+    {
+      selector: '.btn-new',
+      title: '新建笔记',
+      desc: '你也可以手动创建一篇新笔记。'
+    }
+  ];
+
+  return window.innerWidth <= 768 ? mobile : desktop;
+}
+
+function shouldShowGuide(){
+  return !localStorage.getItem('zhijian_v3_guide_done');
+}
+
+function markGuideDone(){
+  localStorage.setItem('zhijian_v3_guide_done', '1');
+}
+
+function resetGuide(){
+  localStorage.removeItem('zhijian_v3_guide_done');
+  closeSettings();
+  setTimeout(()=>startGuide(),120);
+}
+
+function startGuide(){
+  switchView('grid');
+  guideIndex = 0;
+
+  const overlay = document.getElementById('guideOverlay');
+  overlay.classList.add('show');
+
+  if (notes.length && document.getElementById('editorPanel').classList.contains('hidden')) {
+    openNote(notes[0].id);
+  }
+
+  renderGuideStep();
+}
+
+function skipGuide(){
+  document.getElementById('guideOverlay').classList.remove('show');
+  markGuideDone();
+
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sbOv').classList.remove('open');
+}
+
+
+function nextGuideStep(){
+  const steps = getGuideSteps();
+  if (guideIndex >= steps.length - 1) {
+    skipGuide();
+    toast('已完成首次引导');
+    return;
+  }
+  guideIndex++;
+  renderGuideStep();
+}
+
+function prevGuideStep(){
+  if (guideIndex <= 0) return;
+  guideIndex--;
+  renderGuideStep();
+}
+
+function renderGuideStep(){
+  const steps = getGuideSteps();
+  const step = steps[guideIndex];
+  if (!step) return;
+
+  if (step.selector === '#editorPanel') {
+    if (document.getElementById('editorPanel').classList.contains('hidden') && notes.length) {
+      openNote(notes[0].id);
+    }
+  }
+
+  if (step.selector === '#sidebar' && window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sbOv').classList.add('open');
+  }
+
+  const el = document.querySelector(step.selector);
+  if (!el) return;
+
+  const rect = el.getBoundingClientRect();
+  const pad = 8;
+
+  const hl = document.getElementById('guideHighlight');
+  hl.style.left = `${rect.left - pad}px`;
+  hl.style.top = `${rect.top - pad}px`;
+  hl.style.width = `${rect.width + pad * 2}px`;
+  hl.style.height = `${rect.height + pad * 2}px`;
+
+  document.getElementById('guideStep').textContent = `${guideIndex + 1} / ${steps.length}`;
+  document.getElementById('guideTitle').textContent = step.title;
+  document.getElementById('guideDesc').textContent = step.desc;
+
+  const pop = document.getElementById('guidePop');
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const popW = Math.min(340, vw - 24);
+  const popH = 190;
+
+  let top = rect.bottom + 14;
+  let left = rect.left;
+
+  if (left + popW > vw - 12) left = vw - popW - 12;
+  if (left < 12) left = 12;
+
+  if (top + popH > vh - 12) {
+    top = rect.top - popH - 14;
+  }
+  if (top < 12) {
+    top = Math.max(12, vh - popH - 12);
+  }
+
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+
+  const prevBtn = document.getElementById('guidePrevBtn');
+  const nextBtn = document.getElementById('guideNextBtn');
+  prevBtn.style.visibility = guideIndex === 0 ? 'hidden' : 'visible';
+  nextBtn.textContent = guideIndex === steps.length - 1 ? '完成' : '下一步';
+
+  try{
+    el.scrollIntoView({ block:'center', inline:'center', behavior:'smooth' });
+  }catch(e){}
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('guideOverlay').classList.contains('show')) {
+    renderGuideStep();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!document.getElementById('guideOverlay').classList.contains('show')) return;
+
+  if (e.key === 'ArrowRight' || e.key === 'Enter') {
+    e.preventDefault();
+    nextGuideStep();
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    prevGuideStep();
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    skipGuide();
+  }
+});
 
 /* ════════════════════════════════════════
    INIT
@@ -1257,6 +1580,11 @@ document.addEventListener('keydown',e=>{
 loadData();
 renderTags();
 renderGrid(getFiltered('all'));
+
+setTimeout(() => {
+  if (shouldShowGuide()) startGuide();
+}, 500);
+
 </script>
 </body>
 </html>
