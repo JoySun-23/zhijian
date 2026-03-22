@@ -440,21 +440,50 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--paper);color:var(--i
 
 /* ── MOBILE ─────────────────────────────── */
 @media(max-width:768px){
-  :root{--sw:220px}
-  .hamburger{display:block}
-  .logo span:not(.logo-mark):not(.logo-v){display:none}
-  .search-wrap{max-width:none}
-  .btn-settings{display:none}
-  .sidebar{position:fixed;top:var(--th);left:0;bottom:0;z-index:150;transform:translateX(-100%)}
-  .sidebar.open{transform:translateX(0)}
-  .sb-overlay.open{display:block}
-  .editor-panel{position:fixed;top:var(--th);right:0;bottom:0;width:100%!important;z-index:160}
-  .editor-panel.hidden{display:none}
-  .notes-grid{padding:10px;gap:9px;grid-template-columns:1fr 1fr}
-  .clip-drawer{width:100vw}
-  .rw{grid-template-columns:1fr}
-  .vtab:nth-child(3){display:none}
+  .guide-highlight{
+    border-radius:10px;
+  }
+
+  .guide-pop{
+    left:12px !important;
+    right:12px !important;
+    top:auto !important;
+    bottom:12px !important;
+    width:auto !important;
+    max-width:none;
+    border-radius:10px;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .guide-step{
+    font-size:10px;
+  }
+
+  .guide-title{
+    font-size:15px;
+  }
+
+  .guide-desc{
+    font-size:13px;
+    line-height:1.7;
+  }
+
+  .guide-tipline{
+    display:none;
+  }
+
+  .guide-actions{
+    gap:6px;
+    flex-wrap:wrap;
+  }
+
+  .guide-btn{
+    flex:1;
+    min-width:88px;
+    padding:9px 10px;
+  }
 }
+
 @media(max-width:480px){
   .notes-grid{grid-template-columns:1fr}
   .topbar{padding:0 8px;gap:6px}
@@ -1361,7 +1390,14 @@ document.addEventListener('keydown',e=>{
 /* ════════════════════════════════════════
    FIRST LOGIN GUIDE
 ════════════════════════════════════════ */
+/* ════════════════════════════════════════
+   FIRST LOGIN GUIDE
+════════════════════════════════════════ */
 let guideIndex = 0;
+
+function isMobileGuide(){
+  return window.innerWidth <= 768;
+}
 
 function getGuideSteps(){
   const desktop = [
@@ -1406,31 +1442,36 @@ function getGuideSteps(){
     {
       selector: '.search-wrap',
       title: '搜索入口',
-      desc: '这里可以搜索笔记、标签和关键词。'
+      desc: '这里可以快速搜索笔记、标签和关键词。手机上查内容时最常用。'
     },
     {
       selector: '.btn-clip',
       title: '快速剪藏',
-      desc: '这是最核心的入口，支持文字、URL、Coze 文档和 Markdown。'
+      desc: '这是最核心的入口。你可以随手把文章、小红书面经、Coze 文档存进知识库。'
     },
     {
       selector: '.hamburger',
-      title: '侧边导航入口',
-      desc: '手机端左侧导航会收进这里，点击即可展开筛选与分类。'
+      title: '侧边栏入口',
+      desc: '手机端左侧导航会折叠到这里，点开后可以按分类、来源和标签筛选。'
+    },
+    {
+      selector: '#sidebar',
+      title: '移动端筛选面板',
+      desc: '这里能切换全部笔记、剪藏内容、能力维度、来源和标签。看完后会自动收起。'
     },
     {
       selector: '#notesGrid',
-      title: '笔记区',
-      desc: '这里显示当前筛选后的笔记列表，点击即可打开。'
+      title: '笔记列表',
+      desc: '这里显示当前筛选后的笔记。点击任意卡片，会全屏打开右侧编辑面板。'
     },
     {
-      selector: '.btn-new',
-      title: '新建笔记',
-      desc: '你也可以手动创建一篇新笔记。'
+      selector: '#editorPanel',
+      title: '移动端编辑器',
+      desc: '在手机上，编辑器会全屏展开。你可以查看内容、编辑正文、保存笔记。'
     }
   ];
 
-  return window.innerWidth <= 768 ? mobile : desktop;
+  return isMobileGuide() ? mobile : desktop;
 }
 
 function shouldShowGuide(){
@@ -1439,6 +1480,11 @@ function shouldShowGuide(){
 
 function markGuideDone(){
   localStorage.setItem('zhijian_v3_guide_done', '1');
+}
+
+function closeGuideRelatedPanels(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sbOv').classList.remove('open');
 }
 
 function resetGuide(){
@@ -1451,11 +1497,18 @@ function startGuide(){
   switchView('grid');
   guideIndex = 0;
 
+  closeGuideRelatedPanels();
+  document.body.style.overflow = 'hidden';
+
+
   const overlay = document.getElementById('guideOverlay');
   overlay.classList.add('show');
 
-  if (notes.length && document.getElementById('editorPanel').classList.contains('hidden')) {
+  if (notes.length) {
     openNote(notes[0].id);
+    if (isMobileGuide()) {
+      closeEditor();
+    }
   }
 
   renderGuideStep();
@@ -1463,12 +1516,11 @@ function startGuide(){
 
 function skipGuide(){
   document.getElementById('guideOverlay').classList.remove('show');
+  document.body.style.overflow = '';
   markGuideDone();
 
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sbOv').classList.remove('open');
+  closeGuideRelatedPanels();
 }
-
 
 function nextGuideStep(){
   const steps = getGuideSteps();
@@ -1487,73 +1539,120 @@ function prevGuideStep(){
   renderGuideStep();
 }
 
+function ensureGuideStepState(step){
+  const selector = step.selector;
+
+  if (selector === '#sidebar' && isMobileGuide()) {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sbOv').classList.add('open');
+  } else if (selector !== '#sidebar') {
+    closeGuideRelatedPanels();
+  }
+
+  if (selector === '#editorPanel') {
+    if (notes.length) {
+      openNote(notes[0].id);
+    }
+  } else if (selector !== '#editorPanel' && isMobileGuide()) {
+    closeEditor();
+  }
+}
+
+function getGuideRect(el){
+  const rect = el.getBoundingClientRect();
+  const topbar = document.querySelector('.topbar');
+  const topbarH = topbar ? topbar.getBoundingClientRect().height : 0;
+
+  let left = rect.left;
+  let top = rect.top;
+  let width = rect.width;
+  let height = rect.height;
+
+  if (isMobileGuide()) {
+    if (top < topbarH + 6) {
+      const diff = (topbarH + 6) - top;
+      top += diff;
+      height = Math.max(24, height - diff);
+    }
+  }
+
+  return { left, top, width, height };
+}
+
 function renderGuideStep(){
   const steps = getGuideSteps();
   const step = steps[guideIndex];
   if (!step) return;
 
-  if (step.selector === '#editorPanel') {
-    if (document.getElementById('editorPanel').classList.contains('hidden') && notes.length) {
-      openNote(notes[0].id);
-    }
-  }
-
-  if (step.selector === '#sidebar' && window.innerWidth <= 768) {
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('sbOv').classList.add('open');
-  }
+  ensureGuideStepState(step);
 
   const el = document.querySelector(step.selector);
   if (!el) return;
 
-  const rect = el.getBoundingClientRect();
-  const pad = 8;
+  const isSidebarStep = step.selector === '#sidebar' && isMobileGuide();
 
-  const hl = document.getElementById('guideHighlight');
-  hl.style.left = `${rect.left - pad}px`;
-  hl.style.top = `${rect.top - pad}px`;
-  hl.style.width = `${rect.width + pad * 2}px`;
-  hl.style.height = `${rect.height + pad * 2}px`;
-
-  document.getElementById('guideStep').textContent = `${guideIndex + 1} / ${steps.length}`;
-  document.getElementById('guideTitle').textContent = step.title;
-  document.getElementById('guideDesc').textContent = step.desc;
-
-  const pop = document.getElementById('guidePop');
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const popW = Math.min(340, vw - 24);
-  const popH = 190;
-
-  let top = rect.bottom + 14;
-  let left = rect.left;
-
-  if (left + popW > vw - 12) left = vw - popW - 12;
-  if (left < 12) left = 12;
-
-  if (top + popH > vh - 12) {
-    top = rect.top - popH - 14;
-  }
-  if (top < 12) {
-    top = Math.max(12, vh - popH - 12);
+  if (!isSidebarStep) {
+    try{
+      el.scrollIntoView({ block:'center', inline:'center', behavior:'smooth' });
+    }catch(e){}
   }
 
-  pop.style.left = `${left}px`;
-  pop.style.top = `${top}px`;
+  setTimeout(() => {
+    const rect = getGuideRect(el);
+    const pad = isMobileGuide() ? 6 : 8;
 
-  const prevBtn = document.getElementById('guidePrevBtn');
-  const nextBtn = document.getElementById('guideNextBtn');
-  prevBtn.style.visibility = guideIndex === 0 ? 'hidden' : 'visible';
-  nextBtn.textContent = guideIndex === steps.length - 1 ? '完成' : '下一步';
+    const hl = document.getElementById('guideHighlight');
+    hl.style.left = `${Math.max(6, rect.left - pad)}px`;
+    hl.style.top = `${Math.max(6, rect.top - pad)}px`;
+    hl.style.width = `${Math.max(24, rect.width + pad * 2)}px`;
+    hl.style.height = `${Math.max(24, rect.height + pad * 2)}px`;
 
-  try{
-    el.scrollIntoView({ block:'center', inline:'center', behavior:'smooth' });
-  }catch(e){}
+    document.getElementById('guideStep').textContent = `${guideIndex + 1} / ${steps.length}`;
+    document.getElementById('guideTitle').textContent = step.title;
+    document.getElementById('guideDesc').textContent = step.desc;
+
+    const prevBtn = document.getElementById('guidePrevBtn');
+    const nextBtn = document.getElementById('guideNextBtn');
+    prevBtn.style.visibility = guideIndex === 0 ? 'hidden' : 'visible';
+    nextBtn.textContent = guideIndex === steps.length - 1 ? '完成' : '下一步';
+
+    if (!isMobileGuide()) {
+      const pop = document.getElementById('guidePop');
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const popW = Math.min(340, vw - 24);
+      const popH = 190;
+
+      let top = rect.top + rect.height + 14;
+      let left = rect.left;
+
+      if (left + popW > vw - 12) left = vw - popW - 12;
+      if (left < 12) left = 12;
+
+      if (top + popH > vh - 12) {
+        top = rect.top - popH - 14;
+      }
+      if (top < 12) {
+        top = Math.max(12, vh - popH - 12);
+      }
+
+      pop.style.left = `${left}px`;
+      pop.style.top = `${top}px`;
+      pop.style.right = 'auto';
+      pop.style.bottom = 'auto';
+    }
+  }, isMobileGuide() ? 220 : 80);
 }
 
 window.addEventListener('resize', () => {
   if (document.getElementById('guideOverlay').classList.contains('show')) {
     renderGuideStep();
+  }
+});
+
+window.addEventListener('orientationchange', () => {
+  if (document.getElementById('guideOverlay').classList.contains('show')) {
+    setTimeout(renderGuideStep, 260);
   }
 });
 
@@ -1573,6 +1672,7 @@ document.addEventListener('keydown', (e) => {
     skipGuide();
   }
 });
+
 
 /* ════════════════════════════════════════
    INIT
